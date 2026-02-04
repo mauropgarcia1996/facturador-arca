@@ -182,6 +182,29 @@ app.post('/auth', requireApiKey, async (req, res) => {
   }
 });
 
+/** Proxy WSFEX: Vercel no puede alcanzar AFIP (fetch failed). Railway sí. */
+app.post('/wsfex', requireApiKey, async (req, res) => {
+  try {
+    const { soapAction, body } = req.body;
+    if (!body || !soapAction) {
+      return res.status(400).json({ error: 'Missing soapAction or body' });
+    }
+    const afipRes = await fetch('https://servicios1.afip.gov.ar/wsfexv1/service.asmx', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': soapAction,
+      },
+      body,
+    });
+    const text = await afipRes.text();
+    res.status(afipRes.status).set('Content-Type', 'text/xml').send(text);
+  } catch (err) {
+    console.error('[WSFEX Proxy] Error:', err.message);
+    res.status(500).json({ error: 'Proxy failed', message: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });

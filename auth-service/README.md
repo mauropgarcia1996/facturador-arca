@@ -1,6 +1,8 @@
 # ARCA Auth Service
 
-Microservicio de autenticación WSAA para ARCA/AFIP. Usa OpenSSL para la firma CMS (compatible con AFIP). Pensado para desplegar en Railway o Render y ser llamado desde la app en Vercel.
+Microservicio de autenticación WSAA y proxy WSFEX para ARCA/AFIP. Usa OpenSSL para la firma CMS. Pensado para desplegar en Railway o Render. La app en Vercel llama a este servicio porque:
+- Vercel no puede conectarse a AFIP (fetch failed - posible bloqueo de IPs de datacenter)
+- Railway sí puede alcanzar AFIP
 
 ## Requisitos
 
@@ -20,6 +22,10 @@ Microservicio de autenticación WSAA para ARCA/AFIP. Usa OpenSSL para la firma C
 | `ARCA_AUTH_API_KEY` | No | Si se define, las requests deben incluir `X-Api-Key: <valor>` |
 
 *Usar paths O base64, no ambos.
+
+**Endpoints:**
+- `POST /auth` - Autenticación WSAA (token/sign)
+- `POST /wsfex` - Proxy de llamadas SOAP a servicios1.afip.gov.ar (tipo cambio, facturación, etc.)
 
 ## Despliegue en Railway
 

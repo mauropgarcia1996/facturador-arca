@@ -3,6 +3,35 @@ import { FacturaE } from '../types/factura';
 
 const WSFEX_URL = 'https://servicios1.afip.gov.ar/wsfexv1/service.asmx';
 
+/** Llamada a WSFEX. Si ARCA_AUTH_SERVICE_URL está configurado, usa el proxy (Railway) para evitar "fetch failed" en Vercel. */
+async function wsfexFetch(soapAction: string, envelope: string): Promise<Response> {
+  const proxyUrl = process.env.ARCA_AUTH_SERVICE_URL;
+  if (proxyUrl) {
+    const base = proxyUrl.startsWith('http') ? proxyUrl : `https://${proxyUrl}`;
+    const url = `${base.replace(/\/$/, '')}/wsfex`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const apiKey = process.env.ARCA_AUTH_API_KEY;
+    if (apiKey) headers['X-Api-Key'] = apiKey;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ soapAction, body: envelope }),
+    });
+    const text = await res.text();
+    return new Response(text, { status: res.status, headers: { 'Content-Type': 'text/xml' } });
+  }
+  return fetch(WSFEX_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset=utf-8',
+      SOAPAction: soapAction,
+    },
+    body: envelope,
+  });
+}
+
 function escapeXml(s: string): string {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -45,16 +74,7 @@ export async function getUltimoComprobante(
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXGetLast_CMP"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetLast_CMP"', envelope);
   const xmlResponse = await response.text();
   const cbteNroMatch = xmlResponse.match(/<Cbte_nro>(\d+)<\/Cbte_nro>/);
   return cbteNroMatch ? parseInt(cbteNroMatch[1]) : 0;
@@ -77,16 +97,7 @@ export async function getPaisesARCA(auth: Auth): Promise<PaisARCA[]> {
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_DST_pais"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_DST_pais"', envelope);
   const xmlResponse = await response.text();
 
   if (!response.ok) {
@@ -166,16 +177,7 @@ export async function getPuntosVentaARCA(auth: Auth): Promise<PuntoVentaARCA[]> 
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_PtoVenta"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_PtoVenta"', envelope);
   const xmlResponse = await response.text();
 
   if (!response.ok) {
@@ -256,16 +258,7 @@ export async function getMonedasConCotizacionARCA(
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_MON_CON_COTIZACION"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_MON_CON_COTIZACION"', envelope);
   const xmlResponse = await response.text();
 
   if (!response.ok) {
@@ -366,16 +359,7 @@ export async function getCotizacionARCA(
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_Ctz"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetPARAM_Ctz"', envelope);
   const xmlResponse = await response.text();
 
   if (!response.ok) {
@@ -502,16 +486,7 @@ export async function emitirFacturaE(
   `;
 
   const envelope = createSOAPEnvelope(soapBody);
-
-  const response = await fetch(WSFEX_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '"http://ar.gov.afip.dif.fexv1/FEXAuthorize"',
-    },
-    body: envelope,
-  });
-
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXAuthorize"', envelope);
   const xmlResponse = await response.text();
 
   if (!response.ok) {
