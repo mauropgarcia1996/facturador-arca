@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
       moneda: moneda || 'DOL',
       fecha: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to get exchange rate';
     console.error('Tipo cambio error:', error);
     return NextResponse.json(
-      { error: 'Failed to get exchange rate' },
+      { error: 'Failed to get exchange rate', message },
       { status: 500 }
     );
   }

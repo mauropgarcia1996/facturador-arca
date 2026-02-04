@@ -186,6 +186,10 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`ARCA Auth Service listening on port ${PORT}`);
+app.get('/', (req, res) => {
+  res.json({ ok: true, service: 'arca-auth' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`ARCA Auth Service listening on 0.0.0.0:${PORT}`);
 });

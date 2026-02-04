@@ -322,15 +322,20 @@ export async function getMonedasConCotizacionARCA(
 
 /** Retorna YYYYMMDD del día hábil anterior (excluye sábado y domingo en Argentina) */
 function getDiaHabilAnterior(fecha: Date): string {
-  const d = new Date(fecha);
+  // Usar hora Argentina para que coincida con ARCA (evita errores en Vercel/UTC)
+  const argDateStr = fecha.toLocaleDateString('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+  const [y, m, day] = argDateStr.split('-');
+  let d = new Date(parseInt(y!, 10), parseInt(m!, 10) - 1, parseInt(day!, 10));
   d.setDate(d.getDate() - 1);
   while (d.getDay() === 0 || d.getDay() === 6) {
     d.setDate(d.getDate() - 1);
   }
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}${m}${day}`;
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
 }
 
 /** Busca USD en la lista. Código 012 = Real (BRL); USD = DOL, 002, o descripción "estadounidense". */
