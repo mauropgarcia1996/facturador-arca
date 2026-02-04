@@ -8,11 +8,14 @@ export async function POST(request: NextRequest) {
 
     // Si hay auth service (Railway/Render), delegar ahí
     if (authServiceUrl) {
+      const base = authServiceUrl.startsWith('http') ? authServiceUrl : `https://${authServiceUrl}`;
+      const url = `${base.replace(/\/$/, '')}/auth`;
+
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const apiKey = process.env.ARCA_AUTH_API_KEY;
       if (apiKey) headers['X-Api-Key'] = apiKey;
 
-      const res = await fetch(`${authServiceUrl.replace(/\/$/, '')}/auth`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({}),

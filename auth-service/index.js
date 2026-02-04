@@ -15,10 +15,10 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
-/** Formato fecha ARCA: YYYY-MM-DDTHH:MM:SS-03:00 */
+/** Formato fecha ARCA: YYYY-MM-DDTHH:MM:SS-03:00 (hora Argentina) */
 function formatARCADate(date) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}-03:00`;
+  const s = date.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
+  return s.replace(' ', 'T') + '-03:00';
 }
 
 /** Resuelve rutas de cert/key: env paths o base64 -> /tmp */
@@ -72,8 +72,8 @@ function signCMS(certPath, keyPath, data) {
 /** Autentica con WSAA */
 async function authenticateWSAA(cuit, certPath, keyPath, wsaaUrl) {
   const now = new Date();
-  const generationTime = new Date(now.getTime() - 5 * 60 * 1000);
-  const expirationTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const generationTime = now;
+  const expirationTime = new Date(now.getTime() + 12 * 60 * 60 * 1000); // AFIP max 12h
   const uniqueId = Math.floor(Date.now() / 1000);
 
   const loginTicketRequest = `<?xml version="1.0" encoding="UTF-8"?>

@@ -34,15 +34,9 @@ export async function signCMS(
 }
 
 function formatARCADate(date: Date): string {
-  // ARCA requiere formato específico: YYYY-MM-DDTHH:MM:SS-03:00 (zona horaria Argentina)
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}-03:00`;
+  // ARCA requiere YYYY-MM-DDTHH:MM:SS-03:00 (hora Argentina)
+  const s = date.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
+  return s.replace(' ', 'T') + '-03:00';
 }
 
 export function createAuthRequest(
@@ -52,8 +46,8 @@ export function createAuthRequest(
   keyPath: string
 ): Promise<string> {
   const now = new Date();
-  const generationTime = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutos antes (para evitar desfases)
-  const expirationTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 horas después
+  const generationTime = now;
+  const expirationTime = new Date(now.getTime() + 12 * 60 * 60 * 1000); // AFIP max 12h
 
   const uniqueId = Math.floor(Date.now() / 1000);
 
