@@ -30,6 +30,7 @@ cp .env.local.example .env.local
 # - CUIT
 # - Rutas a certificados
 # - Puntos de venta
+# - Credenciales de acceso a la app (APP_LOGIN_*)
 
 # Iniciar servidor de desarrollo
 npm run dev
@@ -42,6 +43,11 @@ Editá el archivo `.env.local`:
 ### Desarrollo local (archivos)
 
 ```env
+# Acceso a la app (Basic Auth)
+# IMPORTANTE: configurá estas 2 variables con valores fuertes para que solo puedas entrar vos.
+APP_LOGIN_USER=tu_usuario
+APP_LOGIN_PASSWORD=tu_password_largo
+
 # Tu CUIT (11 dígitos, sin guiones)
 ARCA_CUIT=20400492140
 
