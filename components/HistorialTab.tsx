@@ -73,49 +73,14 @@ export function HistorialTab({
     onError(null);
 
     try {
-      const metaResponse = await fetch('/api/facturas/sync-meta', {
+      const response = await fetch('/api/facturas/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ auth }),
       });
-      const meta = await metaResponse.json();
-      if (!meta.success) {
-        throw new Error(meta.error || 'No se pudo consultar ARCA');
-      }
-
-      const total = meta.lastNro ?? 0;
-      const puntoVenta = meta.puntoVenta;
-      if (total <= 0) {
-        await fetch('/api/facturas', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'complete-sync' }),
-        });
-        await loadFacturas();
-        return;
-      }
-
-      for (let numero = 1; numero <= total; numero += 1) {
-        setSyncProgress({ current: numero, total });
-        const response = await fetch('/api/facturas/sync-one', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auth, numero, puntoVenta }),
-        });
-        const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.error || `Error sincronizando comprobante ${numero}`);
-        }
-      }
-
-      const completeResponse = await fetch('/api/facturas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'complete-sync' }),
-      });
-      const complete = await completeResponse.json();
-      if (!complete.success) {
-        throw new Error(complete.error || 'No se pudo finalizar la sincronización');
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'No se pudo sincronizar desde ARCA');
       }
 
       await loadFacturas();
@@ -152,18 +117,26 @@ export function HistorialTab({
           </button>
         </div>
 
-        {syncing && syncProgress && (
+        {syncing && (
           <div className="mt-3 space-y-1">
             <div className="flex justify-between text-xs text-gray-600">
-              <span>Sincronizando comprobantes</span>
-              <span>
-                {syncProgress.current}/{syncProgress.total}
-              </span>
+              <span>Importando desde ARCA</span>
+              {syncProgress && syncProgress.total > 0 && (
+                <span>
+                  {syncProgress.current}/{syncProgress.total}
+                </span>
+              )}
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-200">
               <div
-                className="h-full rounded-full bg-blue-600 transition-all"
-                style={{ width: `${progressPercent}%` }}
+                className={`h-full rounded-full bg-blue-600 ${
+                  syncProgress && syncProgress.total > 0 ? 'transition-all' : 'w-1/2 animate-pulse'
+                }`}
+                style={
+                  syncProgress && syncProgress.total > 0
+                    ? { width: `${progressPercent}%` }
+                    : undefined
+                }
               />
             </div>
           </div>

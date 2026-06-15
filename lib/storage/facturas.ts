@@ -52,7 +52,10 @@ async function writeLocalIndex(index: FacturasIndex): Promise<void> {
 }
 
 async function readBlobIndex(): Promise<FacturasIndex> {
-  const result = await get(BLOB_PATHNAME, { access: 'private' });
+  const result = await get(BLOB_PATHNAME, {
+    access: 'private',
+    useCache: false,
+  });
   if (!result || result.statusCode !== 200 || !result.stream) {
     return emptyIndex();
   }
@@ -124,6 +127,28 @@ export async function markFacturasSynced(): Promise<FacturasIndex> {
   const updated: FacturasIndex = {
     ...index,
     lastSyncedAt: new Date().toISOString(),
+  };
+  await writeIndex(updated);
+  return updated;
+}
+
+export async function replaceSyncedComprobantes(
+  puntoVta: number,
+  cbteTipo: number,
+  comprobantes: ComprobanteE[]
+): Promise<FacturasIndex> {
+  const index = await readIndex();
+  const syncedAt = new Date().toISOString();
+  const incoming: StoredComprobante[] = comprobantes.map((comprobante) => ({
+    ...comprobante,
+    syncedAt,
+  }));
+  const kept = index.items.filter(
+    (item) => !(item.puntoVta === puntoVta && item.cbteTipo === cbteTipo)
+  );
+  const updated: FacturasIndex = {
+    lastSyncedAt: syncedAt,
+    items: sortItems([...kept, ...incoming]),
   };
   await writeIndex(updated);
   return updated;

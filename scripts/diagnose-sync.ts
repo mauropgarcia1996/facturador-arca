@@ -45,8 +45,18 @@ async function main() {
   console.log('Último comprobante:', lastNro);
 
   if (lastNro > 0) {
-    const cmp = await getComprobanteARCA(arcaAuth, puntoVenta, FACTURA_E_TIPO, lastNro);
-    console.log('Última factura:', cmp?.cae, `$${cmp?.impTotal}`);
+    console.log('Comprobantes en ARCA:');
+    let found = 0;
+    for (let n = 1; n <= lastNro; n += 1) {
+      const cmp = await getComprobanteARCA(arcaAuth, puntoVenta, FACTURA_E_TIPO, n);
+      if (cmp) {
+        found += 1;
+        console.log(`  ${n}: OK $${cmp.impTotal} CAE ${cmp.cae}`);
+      } else {
+        console.log(`  ${n}: (no existe)`);
+      }
+    }
+    console.log(`Total encontrados: ${found}/${lastNro}`);
   }
 }
 
