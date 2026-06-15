@@ -102,6 +102,20 @@ export async function listStoredFacturas(): Promise<FacturasIndex> {
   return readIndex();
 }
 
+export async function getStoredComprobante(
+  puntoVta: number,
+  cbteTipo: number,
+  cbteNro: number
+): Promise<StoredComprobante | null> {
+  const index = await readIndex();
+  const key = comprobanteKey(puntoVta, cbteTipo, cbteNro);
+  return (
+    index.items.find(
+      (item) => comprobanteKey(item.puntoVta, item.cbteTipo, item.cbteNro) === key
+    ) ?? null
+  );
+}
+
 export async function upsertStoredComprobante(comprobante: ComprobanteE): Promise<StoredComprobante> {
   const index = await readIndex();
   const stored: StoredComprobante = {

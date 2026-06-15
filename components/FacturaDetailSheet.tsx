@@ -1,6 +1,7 @@
 'use client';
 
-import { StoredComprobante } from '@/lib/types/comprobante';
+import { useState } from 'react';
+import { FACTURA_E_TIPO, StoredComprobante } from '@/lib/types/comprobante';
 import {
   copyToClipboard,
   formatFechaARCA,
@@ -15,6 +16,8 @@ interface FacturaDetailSheetProps {
 }
 
 export function FacturaDetailSheet({ open, comprobante, onClose }: FacturaDetailSheetProps) {
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
   if (!comprobante) return null;
 
   const descripcion =
@@ -24,6 +27,36 @@ export function FacturaDetailSheet({ open, comprobante, onClose }: FacturaDetail
     const ok = await copyToClipboard(value);
     if (!ok) {
       window.alert(`No se pudo copiar ${label}`);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const params = new URLSearchParams({
+        puntoVta: String(comprobante.puntoVta),
+        cbteTipo: String(comprobante.cbteTipo || FACTURA_E_TIPO),
+        cbteNro: String(comprobante.cbteNro),
+      });
+      const response = await fetch(`/api/facturas/pdf?${params.toString()}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo generar el PDF');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const numero = formatNumeroComprobante(comprobante.puntoVta, comprobante.cbteNro);
+      anchor.href = url;
+      anchor.download = `factura-e-${numero}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error al descargar PDF';
+      window.alert(message);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -101,6 +134,15 @@ export function FacturaDetailSheet({ open, comprobante, onClose }: FacturaDetail
             </button>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleDownloadPdf}
+          disabled={downloadingPdf}
+          className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {downloadingPdf ? 'Generando PDF…' : 'Descargar PDF'}
+        </button>
       </div>
     </BottomSheet>
   );
