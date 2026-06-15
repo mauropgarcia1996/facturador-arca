@@ -1,4 +1,5 @@
 import { createSOAPEnvelope } from './soap';
+import { ComprobanteE, ComprobanteEItem } from '../types/comprobante';
 import { FacturaE } from '../types/factura';
 
 const WSFEX_URL = 'https://servicios1.afip.gov.ar/wsfexv1/service.asmx';
@@ -50,10 +51,134 @@ function extractXmlTag(xml: string, ...tagNames: string[]): string | null {
   return null;
 }
 
-interface Auth {
+export interface Auth {
   token: string;
   sign: string;
   cuit: string;
+}
+
+function parseDecimal(value: string | null | undefined, fallback = 0): number {
+  if (!value) return fallback;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseIntSafe(value: string | null | undefined, fallback = 0): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseComprobanteItems(block: string): ComprobanteEItem[] {
+  const items: ComprobanteEItem[] = [];
+  const itemRegex = /<Item[^>]*>([\s\S]*?)<\/Item>/gi;
+  let match;
+  while ((match = itemRegex.exec(block)) !== null) {
+    const itemBlock = match[1];
+    const proDs = extractXmlTag(itemBlock, 'Pro_ds', 'pro_ds');
+    if (!proDs) continue;
+    items.push({
+      proDs,
+      proQty: parseDecimal(extractXmlTag(itemBlock, 'Pro_qty', 'pro_qty')),
+      proUmed: parseIntSafe(extractXmlTag(itemBlock, 'Pro_umed', 'pro_umed')),
+      proPrecioUni: parseDecimal(extractXmlTag(itemBlock, 'Pro_precio_uni', 'pro_precio_uni')),
+      proTotalItem: parseDecimal(extractXmlTag(itemBlock, 'Pro_total_item', 'pro_total_item')),
+    });
+  }
+  return items;
+}
+
+function parseComprobanteBlock(block: string): ComprobanteE | null {
+  const cbteNro = parseIntSafe(extractXmlTag(block, 'Cbte_nro', 'Cbt_nro', 'cbte_nro'));
+  const cae = extractXmlTag(block, 'Cae', 'cae');
+  if (!cbteNro || !cae) return null;
+
+  return {
+    id: parseIntSafe(extractXmlTag(block, 'Id')),
+    fechaCbte: extractXmlTag(block, 'Fecha_cbte', 'fecha_cbte') ?? '',
+    cbteTipo: parseIntSafe(extractXmlTag(block, 'Cbte_tipo', 'Cbte_Tipo', 'cbte_tipo')),
+    puntoVta: parseIntSafe(extractXmlTag(block, 'Punto_vta', 'punto_vta')),
+    cbteNro,
+    tipoExpo: parseIntSafe(extractXmlTag(block, 'Tipo_expo', 'tipo_expo')),
+    cliente: extractXmlTag(block, 'Cliente', 'cliente') ?? '',
+    domicilioCliente: extractXmlTag(block, 'Domicilio_cliente', 'domicilio_cliente') ?? '',
+    idImpositivo: extractXmlTag(block, 'Id_impositivo', 'id_impositivo') ?? '',
+    monedaId: extractXmlTag(block, 'Moneda_Id', 'Moneda_id', 'moneda_id') ?? '',
+    monedaCtz: parseDecimal(extractXmlTag(block, 'Moneda_ctz', 'Moneda_Ctz', 'moneda_ctz')),
+    impTotal: parseDecimal(extractXmlTag(block, 'Imp_total', 'imp_total')),
+    obsComerciales: extractXmlTag(block, 'Obs_comerciales', 'obs_comerciales') ?? '',
+    formaPago: extractXmlTag(block, 'Forma_pago', 'forma_pago') ?? '',
+    fechaPago: extractXmlTag(block, 'Fecha_pago', 'fecha_pago') ?? '',
+    cae,
+    fchVencCae: extractXmlTag(block, 'Fch_venc_Cae', 'Fch_venc_cae', 'fch_venc_cae') ?? '',
+    fechaCbteCae: extractXmlTag(block, 'Fecha_cbte_cae', 'fecha_cbte_cae') ?? '',
+    items: parseComprobanteItems(block),
+  };
+}
+
+function assertWsfeOk(xmlResponse: string, label: string): void {
+  if (!responseOk(xmlResponse)) {
+    const errMsg = extractXmlTag(xmlResponse, 'ErrMsg', 'Err_msg');
+    const errCode = extractXmlTag(xmlResponse, 'ErrCode', 'Err_code');
+    throw new Error(errMsg ? `[${errCode}] ${errMsg}` : `${label}: ${errCode ?? 'error desconocido'}`);
+  }
+}
+
+function responseOk(xmlResponse: string): boolean {
+  const errCode = extractXmlTag(xmlResponse, 'ErrCode', 'Err_code');
+  return !errCode || errCode === '0';
+}
+
+export async function getComprobanteARCA(
+  auth: Auth,
+  puntoVenta: number,
+  tipoComprobante: number,
+  cbteNro: number
+): Promise<ComprobanteE | null> {
+  const soapBody = `
+    <FEXGetCMP xmlns="http://ar.gov.afip.dif.fexv1/">
+      <Auth>
+        <Token>${auth.token}</Token>
+        <Sign>${auth.sign}</Sign>
+        <Cuit>${auth.cuit}</Cuit>
+      </Auth>
+      <Cmp>
+        <Cbte_tipo>${tipoComprobante}</Cbte_tipo>
+        <Punto_vta>${puntoVenta}</Punto_vta>
+        <Cbte_nro>${cbteNro}</Cbte_nro>
+      </Cmp>
+    </FEXGetCMP>
+  `;
+
+  const envelope = createSOAPEnvelope(soapBody);
+  const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetCMP"', envelope);
+  const xmlResponse = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}\n${xmlResponse}`);
+  }
+
+  const errCode = extractXmlTag(xmlResponse, 'ErrCode', 'Err_code');
+  if (errCode === '1020') {
+    return null;
+  }
+
+  assertWsfeOk(xmlResponse, 'FEXGetCMP');
+
+  const resultBlock =
+    xmlResponse.match(/<FEXResultGet[^>]*>([\s\S]*?)<\/FEXResultGet>/i)?.[1] ??
+    xmlResponse.match(/<ResultGet[^>]*>([\s\S]*?)<\/ResultGet>/i)?.[1] ??
+    xmlResponse;
+
+  return parseComprobanteBlock(resultBlock);
+}
+
+export async function getUltimoNumeroAutorizado(
+  auth: Auth,
+  puntoVenta: number,
+  tipoComprobante: number
+): Promise<number> {
+  return getUltimoComprobante(auth, puntoVenta, tipoComprobante);
 }
 
 export async function getUltimoComprobante(

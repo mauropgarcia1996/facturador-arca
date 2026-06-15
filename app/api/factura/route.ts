@@ -1,47 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { emitirFacturaE } from '@/lib/arca/wsfe';
+import { emitirFacturaE, getComprobanteARCA } from '@/lib/arca/wsfe';
+import { parseAuthPayload, requireCuit } from '@/lib/api/parse-auth';
+import { upsertStoredComprobante } from '@/lib/storage/facturas';
 import { FacturaE } from '@/lib/types/factura';
+import { FACTURA_E_TIPO } from '@/lib/types/comprobante';
 
 export async function POST(request: NextRequest) {
   try {
-    const { auth, factura }: { auth: any; factura: FacturaE } = await request.json();
+    const body = await request.json();
+    const authPayload = parseAuthPayload(body.auth);
+    const factura = body.factura as FacturaE | undefined;
 
-    console.log('[Factura API] Auth present:', !!auth, 'Token:', auth?.token?.substring(0, 20) + '...', 'Sign:', auth?.sign?.substring(0, 20) + '...');
-    console.log('[Factura API] Factura:', JSON.stringify(factura, null, 2));
-
-    if (!auth || !auth.token || !auth.sign) {
-      return NextResponse.json(
-        { error: 'Missing authentication' },
-        { status: 401 }
-      );
+    if (!authPayload) {
+      return NextResponse.json({ error: 'Missing authentication' }, { status: 401 });
+    }
+    if (!factura) {
+      return NextResponse.json({ error: 'Missing factura payload' }, { status: 400 });
     }
 
-    const cuit = process.env.ARCA_CUIT;
-    if (!cuit) {
-      return NextResponse.json(
-        { error: 'Missing CUIT configuration' },
-        { status: 500 }
-      );
-    }
+    const cuit = requireCuit();
+    const auth = { ...authPayload, cuit };
 
-    console.log('[Factura API] Calling emitirFacturaE with CUIT:', cuit);
-    const result = await emitirFacturaE(
-      { ...auth, cuit },
-      factura
-    );
+    const result = await emitirFacturaE(auth, factura);
+
+    let stored = null;
+    try {
+      const comprobante = await getComprobanteARCA(
+        auth,
+        factura.puntoVenta,
+        FACTURA_E_TIPO,
+        result.numero
+      );
+      if (comprobante) {
+        stored = await upsertStoredComprobante(comprobante);
+      }
+    } catch (storageError) {
+      console.error('Factura saved in ARCA but storage upsert failed:', storageError);
+    }
 
     return NextResponse.json({
       success: true,
       cae: result.cae,
       numero: result.numero,
       fechaVencimiento: result.fechaVencimiento,
+      comprobante: stored,
+      stored: Boolean(stored),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to emit invoice';
     console.error('Factura error:', error);
-    console.error('Factura error stack:', error.stack);
-    return NextResponse.json(
-      { error: error.message || 'Failed to emit invoice', details: error.stack },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
