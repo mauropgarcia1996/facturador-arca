@@ -8,7 +8,6 @@ import { FacturaDetailSheet } from '@/components/FacturaDetailSheet';
 import { HistorialTab } from '@/components/HistorialTab';
 import { AuthData } from '@/lib/types/auth';
 import { StoredComprobante } from '@/lib/types/comprobante';
-import { FACTURA_E_PUNTO_VENTA } from '@/lib/types/comprobante';
 
 export default function Home() {
   const [auth, setAuth] = useState<AuthData | null>(null);
@@ -114,7 +113,7 @@ export default function Home() {
         <EmitSuccessSheet
           open={successOpen}
           onClose={() => setSuccessOpen(false)}
-          puntoVenta={FACTURA_E_PUNTO_VENTA}
+          puntoVenta={successPayload.puntoVenta}
           numero={successPayload.numero}
           cae={successPayload.cae}
           fechaVencimiento={successPayload.fechaVencimiento}

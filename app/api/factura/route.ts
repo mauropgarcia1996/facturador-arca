@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { emitirFacturaE, getComprobanteARCA } from '@/lib/arca/wsfe';
+import { emitirFacturaE, getComprobanteARCA, resolveFacturaEPuntoVenta } from '@/lib/arca/wsfe';
 import { parseAuthPayload, requireCuit } from '@/lib/api/parse-auth';
 import { upsertStoredComprobante } from '@/lib/storage/facturas';
 import { FacturaE } from '@/lib/types/factura';
@@ -20,14 +20,15 @@ export async function POST(request: NextRequest) {
 
     const cuit = requireCuit();
     const auth = { ...authPayload, cuit };
+    const puntoVenta = await resolveFacturaEPuntoVenta(auth, factura.puntoVenta);
 
-    const result = await emitirFacturaE(auth, factura);
+    const result = await emitirFacturaE(auth, { ...factura, puntoVenta });
 
     let stored = null;
     try {
       const comprobante = await getComprobanteARCA(
         auth,
-        factura.puntoVenta,
+        puntoVenta,
         FACTURA_E_TIPO,
         result.numero
       );
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       success: true,
       cae: result.cae,
       numero: result.numero,
+      puntoVenta,
       fechaVencimiento: result.fechaVencimiento,
       comprobante: stored,
       stored: Boolean(stored),

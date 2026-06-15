@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComprobanteARCA } from '@/lib/arca/wsfe';
+import { getComprobanteARCA, resolveFacturaEPuntoVenta } from '@/lib/arca/wsfe';
 import { parseAuthPayload, requireCuit } from '@/lib/api/parse-auth';
 import { upsertStoredComprobante } from '@/lib/storage/facturas';
-import {
-  FACTURA_E_PUNTO_VENTA,
-  FACTURA_E_TIPO,
-} from '@/lib/types/comprobante';
+import { FACTURA_E_TIPO } from '@/lib/types/comprobante';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,11 +18,12 @@ export async function POST(request: NextRequest) {
     }
 
     const cuit = requireCuit();
-    const puntoVenta = body.puntoVenta ?? FACTURA_E_PUNTO_VENTA;
+    const auth = { ...authPayload, cuit };
+    const puntoVenta = await resolveFacturaEPuntoVenta(auth, body.puntoVenta);
     const tipoComprobante = body.tipoComprobante ?? FACTURA_E_TIPO;
 
     const comprobante = await getComprobanteARCA(
-      { ...authPayload, cuit },
+      auth,
       puntoVenta,
       tipoComprobante,
       numero
@@ -36,6 +34,7 @@ export async function POST(request: NextRequest) {
         success: true,
         skipped: true,
         numero,
+        puntoVenta,
         reason: 'not_found',
       });
     }
@@ -44,6 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       skipped: false,
+      puntoVenta,
       comprobante: stored,
     });
   } catch (error: unknown) {

@@ -84,6 +84,7 @@ export function HistorialTab({
       }
 
       const total = meta.lastNro ?? 0;
+      const puntoVenta = meta.puntoVenta;
       if (total <= 0) {
         await fetch('/api/facturas', {
           method: 'POST',
@@ -99,7 +100,7 @@ export function HistorialTab({
         const response = await fetch('/api/facturas/sync-one', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auth, numero }),
+          body: JSON.stringify({ auth, numero, puntoVenta }),
         });
         const data = await response.json();
         if (!data.success) {

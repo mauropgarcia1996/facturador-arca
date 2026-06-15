@@ -38,5 +38,14 @@ export interface FacturasIndex {
   items: StoredComprobante[];
 }
 
-export const FACTURA_E_PUNTO_VENTA = 5;
 export const FACTURA_E_TIPO = 19;
+
+/** UI/env preference; ARCA may resolve to another enabled FEEWS punto de venta. */
+export function getPreferredPuntoVenta(): number {
+  const fromEnv = process.env.ARCA_PV_E;
+  if (fromEnv) {
+    const parsed = parseInt(fromEnv, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 5;
+}

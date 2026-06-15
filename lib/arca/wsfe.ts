@@ -1,5 +1,5 @@
 import { createSOAPEnvelope } from './soap';
-import { ComprobanteE, ComprobanteEItem } from '../types/comprobante';
+import { ComprobanteE, ComprobanteEItem, getPreferredPuntoVenta } from '../types/comprobante';
 import { FacturaE } from '../types/factura';
 
 const WSFEX_URL = 'https://servicios1.afip.gov.ar/wsfexv1/service.asmx';
@@ -170,7 +170,11 @@ export async function getComprobanteARCA(
     xmlResponse.match(/<ResultGet[^>]*>([\s\S]*?)<\/ResultGet>/i)?.[1] ??
     xmlResponse;
 
-  return parseComprobanteBlock(resultBlock);
+  const parsed = parseComprobanteBlock(resultBlock);
+  if (!parsed) {
+    throw new Error(`FEXGetCMP: no se pudo interpretar el comprobante ${cbteNro}`);
+  }
+  return parsed;
 }
 
 export async function getUltimoNumeroAutorizado(
@@ -201,8 +205,15 @@ export async function getUltimoComprobante(
   const envelope = createSOAPEnvelope(soapBody);
   const response = await wsfexFetch('"http://ar.gov.afip.dif.fexv1/FEXGetLast_CMP"', envelope);
   const xmlResponse = await response.text();
-  const cbteNroMatch = xmlResponse.match(/<Cbte_nro>(\d+)<\/Cbte_nro>/);
-  return cbteNroMatch ? parseInt(cbteNroMatch[1]) : 0;
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}\n${xmlResponse}`);
+  }
+
+  assertWsfeOk(xmlResponse, 'FEXGetLast_CMP');
+
+  const cbteNroMatch = xmlResponse.match(/<Cbte_nro>(\d+)<\/Cbte_nro>/i);
+  return cbteNroMatch ? parseInt(cbteNroMatch[1], 10) : 0;
 }
 
 interface PaisARCA {
@@ -359,6 +370,14 @@ function resolverPuntoVenta(
   }
   const preferidoValido = preferido != null && validos.some((p) => p.numero === preferido);
   return preferidoValido ? preferido! : validos[0].numero;
+}
+
+export async function resolveFacturaEPuntoVenta(
+  auth: Auth,
+  preferido?: number
+): Promise<number> {
+  const puntos = await getPuntosVentaARCA(auth);
+  return resolverPuntoVenta(puntos, preferido ?? getPreferredPuntoVenta());
 }
 
 interface MonedaConCotizacion {

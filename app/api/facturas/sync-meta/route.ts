@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUltimoNumeroAutorizado } from '@/lib/arca/wsfe';
+import { getUltimoNumeroAutorizado, resolveFacturaEPuntoVenta } from '@/lib/arca/wsfe';
 import { parseAuthPayload, requireCuit } from '@/lib/api/parse-auth';
-import {
-  FACTURA_E_PUNTO_VENTA,
-  FACTURA_E_TIPO,
-} from '@/lib/types/comprobante';
+import { FACTURA_E_TIPO } from '@/lib/types/comprobante';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,14 +12,11 @@ export async function POST(request: NextRequest) {
     }
 
     const cuit = requireCuit();
-    const puntoVenta = body.puntoVenta ?? FACTURA_E_PUNTO_VENTA;
+    const auth = { ...authPayload, cuit };
+    const puntoVenta = await resolveFacturaEPuntoVenta(auth, body.puntoVenta);
     const tipoComprobante = body.tipoComprobante ?? FACTURA_E_TIPO;
 
-    const lastNro = await getUltimoNumeroAutorizado(
-      { ...authPayload, cuit },
-      puntoVenta,
-      tipoComprobante
-    );
+    const lastNro = await getUltimoNumeroAutorizado(auth, puntoVenta, tipoComprobante);
 
     return NextResponse.json({
       success: true,

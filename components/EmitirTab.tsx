@@ -5,11 +5,12 @@ import { ClienteExportacion, FacturaE } from '@/lib/types/factura';
 import { AuthData } from '@/lib/types/auth';
 import { StoredComprobante } from '@/lib/types/comprobante';
 import { clientesGuardados, getClienteById } from '@/lib/db/clientes';
-import { FACTURA_E_PUNTO_VENTA } from '@/lib/types/comprobante';
+import { getPreferredPuntoVenta } from '@/lib/types/comprobante';
 
 export interface EmitSuccessPayload {
   cae: string;
   numero: number;
+  puntoVenta: number;
   fechaVencimiento: string;
   importeUsd: number;
   comprobante: StoredComprobante | null;
@@ -86,7 +87,7 @@ export function EmitirTab({ auth, authLoading, onError, onSuccess }: EmitirTabPr
         moneda: 'USD',
         tipoCambio,
         fechaPago,
-        puntoVenta: FACTURA_E_PUNTO_VENTA,
+        puntoVenta: getPreferredPuntoVenta(),
       };
 
       const response = await fetch('/api/factura', {
@@ -101,6 +102,7 @@ export function EmitirTab({ auth, authLoading, onError, onSuccess }: EmitirTabPr
         onSuccess({
           cae: data.cae,
           numero: data.numero,
+          puntoVenta: data.puntoVenta ?? getPreferredPuntoVenta(),
           fechaVencimiento: data.fechaVencimiento,
           importeUsd: qty * monto,
           comprobante: data.comprobante ?? null,
