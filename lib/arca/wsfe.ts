@@ -102,6 +102,8 @@ function parseComprobanteBlock(block: string): ComprobanteE | null {
     tipoExpo: parseIntSafe(extractXmlTag(block, 'Tipo_expo', 'tipo_expo')),
     cliente: extractXmlTag(block, 'Cliente', 'cliente') ?? '',
     domicilioCliente: extractXmlTag(block, 'Domicilio_cliente', 'domicilio_cliente') ?? '',
+    cuitPaisCliente:
+      extractXmlTag(block, 'Cuit_pais_cliente', 'Cuit_pais_Cliente', 'cuit_pais_cliente') ?? '',
     idImpositivo: extractXmlTag(block, 'Id_impositivo', 'id_impositivo') ?? '',
     monedaId: extractXmlTag(block, 'Moneda_Id', 'Moneda_id', 'moneda_id') ?? '',
     monedaCtz: parseDecimal(extractXmlTag(block, 'Moneda_ctz', 'Moneda_Ctz', 'moneda_ctz')),

@@ -16,6 +16,8 @@ export interface ComprobanteE {
   tipoExpo: number;
   cliente: string;
   domicilioCliente: string;
+  /** AFIP CUIT país cliente (FEXGetPARAM_DST_CUIT), used in export QR as tipoDocRec 80. */
+  cuitPaisCliente?: string;
   idImpositivo: string;
   monedaId: string;
   monedaCtz: number;

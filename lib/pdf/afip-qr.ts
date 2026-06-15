@@ -1,6 +1,8 @@
-import { FACTURA_E_TIPO, StoredComprobante } from '@/lib/types/comprobante';
+import { clientesGuardados } from '@/lib/db/clientes';
+import { StoredComprobante } from '@/lib/types/comprobante';
 
 const QR_BASE_URL = 'https://www.arca.gob.ar/fe/qr/?p=';
+const CUIT_DOC_TIPO = 80;
 
 /** ARCA QR spec v1 — field order matters for some validators. */
 export interface AfipQrDataV1 {
@@ -13,8 +15,8 @@ export interface AfipQrDataV1 {
   importe: number;
   moneda: string;
   ctz: number;
-  tipoDocRec?: number;
-  nroDocRec?: number;
+  tipoDocRec: number;
+  nroDocRec: number;
   tipoCodAut: 'E';
   codAut: number;
 }
@@ -67,19 +69,48 @@ export function normalizeQrMoneda(monedaId: string): string {
   return aliased;
 }
 
-function isExportComprobante(cbteTipo: number): boolean {
-  return cbteTipo === FACTURA_E_TIPO || cbteTipo === 20 || cbteTipo === 21;
+function normalizeCuitDigits(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 11) return null;
+  return digits;
 }
 
 /**
- * Build QR JSON for ARCA verification.
- * Export invoices (WSFEX) omit receptor doc fields — foreign id impositivo is not tipo 80 CUIT.
+ * Export QR must include receptor documento. Use CUIT país cliente (tipo 80),
+ * not id impositivo — the latter is not an Argentine CUIT and fails verification.
  */
+export function resolveQrReceptorCuit(comprobante: StoredComprobante): string {
+  const fromArca = comprobante.cuitPaisCliente
+    ? normalizeCuitDigits(comprobante.cuitPaisCliente)
+    : null;
+  if (fromArca) return fromArca;
+
+  const byIdImpositivo = clientesGuardados.find(
+    (cliente) => cliente.idImpositivo === comprobante.idImpositivo
+  );
+  if (byIdImpositivo) {
+    const digits = normalizeCuitDigits(byIdImpositivo.pais.codigoCUIT);
+    if (digits) return digits;
+  }
+
+  const byNombre = clientesGuardados.find((cliente) => cliente.nombre === comprobante.cliente);
+  if (byNombre) {
+    const digits = normalizeCuitDigits(byNombre.pais.codigoCUIT);
+    if (digits) return digits;
+  }
+
+  throw new Error(
+    'CUIT país cliente requerido para el QR. Sincronizá desde ARCA o configurá el cliente en clientes.ts.'
+  );
+}
+
 export function buildAfipQrData(
   comprobante: StoredComprobante,
   emisorCuit: string
 ): AfipQrDataV1 {
-  const data: AfipQrDataV1 = {
+  const receptorCuit = resolveQrReceptorCuit(comprobante);
+
+  return {
     ver: 1,
     fecha: fechaCbteToIso(comprobante.fechaCbte),
     cuit: parseCuitNumber(emisorCuit),
@@ -89,22 +120,11 @@ export function buildAfipQrData(
     importe: normalizeQrImporte(comprobante.impTotal),
     moneda: normalizeQrMoneda(comprobante.monedaId),
     ctz: normalizeQrCtz(comprobante.monedaCtz),
+    tipoDocRec: CUIT_DOC_TIPO,
+    nroDocRec: Number(receptorCuit),
     tipoCodAut: 'E',
     codAut: parseCaeNumber(comprobante.cae),
   };
-
-  // Only domestic-style receivers belong in QR. Export Factura E uses foreign clients
-  // (id impositivo / cuit país) — including tipoDocRec 80 + id impositivo fails verification.
-  if (!isExportComprobante(comprobante.cbteTipo)) {
-    const digits = comprobante.idImpositivo.replace(/\D/g, '');
-    const nroDocRec = Number(digits);
-    if (digits && Number.isFinite(nroDocRec) && nroDocRec > 0) {
-      data.tipoDocRec = 80;
-      data.nroDocRec = nroDocRec;
-    }
-  }
-
-  return data;
 }
 
 export function buildAfipQrPayload(comprobante: StoredComprobante, emisorCuit: string): string {
