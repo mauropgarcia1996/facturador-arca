@@ -108,11 +108,15 @@ export function HistorialTab({
         }
       }
 
-      await fetch('/api/facturas', {
+      const completeResponse = await fetch('/api/facturas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'complete-sync' }),
       });
+      const complete = await completeResponse.json();
+      if (!complete.success) {
+        throw new Error(complete.error || 'No se pudo finalizar la sincronización');
+      }
 
       await loadFacturas();
       onError(null);

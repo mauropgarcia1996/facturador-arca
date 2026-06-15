@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { head, put } from '@vercel/blob';
+import { get, put } from '@vercel/blob';
 import {
   ComprobanteE,
   FacturasIndex,
@@ -28,15 +28,19 @@ function usesBlobStorage(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function parseIndex(raw: string): FacturasIndex {
+  const parsed = JSON.parse(raw) as FacturasIndex;
+  if (!Array.isArray(parsed.items)) return emptyIndex();
+  return {
+    lastSyncedAt: parsed.lastSyncedAt ?? null,
+    items: sortItems(parsed.items),
+  };
+}
+
 async function readLocalIndex(): Promise<FacturasIndex> {
   try {
     const raw = await fs.readFile(LOCAL_INDEX_PATH, 'utf8');
-    const parsed = JSON.parse(raw) as FacturasIndex;
-    if (!Array.isArray(parsed.items)) return emptyIndex();
-    return {
-      lastSyncedAt: parsed.lastSyncedAt ?? null,
-      items: sortItems(parsed.items),
-    };
+    return parseIndex(raw);
   } catch {
     return emptyIndex();
   }
@@ -48,19 +52,13 @@ async function writeLocalIndex(index: FacturasIndex): Promise<void> {
 }
 
 async function readBlobIndex(): Promise<FacturasIndex> {
-  try {
-    const meta = await head(BLOB_PATHNAME);
-    const response = await fetch(meta.url);
-    if (!response.ok) return emptyIndex();
-    const parsed = (await response.json()) as FacturasIndex;
-    if (!Array.isArray(parsed.items)) return emptyIndex();
-    return {
-      lastSyncedAt: parsed.lastSyncedAt ?? null,
-      items: sortItems(parsed.items),
-    };
-  } catch {
+  const result = await get(BLOB_PATHNAME, { access: 'private' });
+  if (!result || result.statusCode !== 200 || !result.stream) {
     return emptyIndex();
   }
+
+  const raw = await new Response(result.stream).text();
+  return parseIndex(raw);
 }
 
 async function writeBlobIndex(index: FacturasIndex): Promise<void> {
@@ -74,7 +72,12 @@ async function writeBlobIndex(index: FacturasIndex): Promise<void> {
 
 async function readIndex(): Promise<FacturasIndex> {
   if (usesBlobStorage()) {
-    return readBlobIndex();
+    try {
+      return await readBlobIndex();
+    } catch (error) {
+      console.error('[facturas storage] Failed to read Blob index:', error);
+      throw error;
+    }
   }
   return readLocalIndex();
 }

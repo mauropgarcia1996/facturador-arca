@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listStoredFacturas } from '@/lib/storage/facturas';
+import { listStoredFacturas, getStorageMode } from '@/lib/storage/facturas';
 
 export async function GET() {
   try {
     const index = await listStoredFacturas();
     return NextResponse.json({
       success: true,
+      storageMode: getStorageMode(),
       lastSyncedAt: index.lastSyncedAt,
       items: index.items,
     });
@@ -23,10 +24,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
     }
 
-    const { markFacturasSynced } = await import('@/lib/storage/facturas');
+    const { markFacturasSynced, getStorageMode } = await import('@/lib/storage/facturas');
     const index = await markFacturasSynced();
     return NextResponse.json({
       success: true,
+      storageMode: getStorageMode(),
       lastSyncedAt: index.lastSyncedAt,
       count: index.items.length,
     });
